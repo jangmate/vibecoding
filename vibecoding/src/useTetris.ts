@@ -57,11 +57,15 @@ function placePiece(board: Board, shape: number[][], x: number, y: number, color
   return newBoard;
 }
 
-function clearLines(board: Board): { board: Board; cleared: number } {
-  const newBoard = board.filter(row => row.some(cell => !cell));
-  const cleared = BOARD_HEIGHT - newBoard.length;
+function clearLines(board: Board): { board: Board; cleared: number; clearedRows: number[] } {
+  const clearedRows: number[] = [];
+  const newBoard = board.filter((row, i) => {
+    if (row.every(cell => cell !== null)) { clearedRows.push(i); return false; }
+    return true;
+  });
+  const cleared = clearedRows.length;
   const emptyRows = Array.from({ length: cleared }, () => Array(BOARD_WIDTH).fill(null));
-  return { board: [...emptyRows, ...newBoard], cleared };
+  return { board: [...emptyRows, ...newBoard], cleared, clearedRows };
 }
 
 export function useTetris() {
@@ -73,6 +77,7 @@ export function useTetris() {
   const [lines, setLines] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [clearingRows, setClearingRows] = useState<number[]>([]);
 
   const boardRef = useRef(board);
   const currentRef = useRef(current);
@@ -103,13 +108,20 @@ export function useTetris() {
     const c = currentRef.current;
     const p = posRef.current;
     const newBoard = placePiece(b, c.shape, p.x, p.y, c.color);
-    const { board: clearedBoard, cleared } = clearLines(newBoard);
-    setBoard(clearedBoard);
+    const { board: clearedBoard, cleared, clearedRows } = clearLines(newBoard);
     if (cleared > 0) {
+      setClearingRows(clearedRows);
       setScore(s => s + [0, 100, 300, 500, 800][cleared]);
       setLines(l => l + cleared);
+      setTimeout(() => {
+        setBoard(clearedBoard);
+        setClearingRows([]);
+        spawnNext(clearedBoard, next);
+      }, 400);
+    } else {
+      setBoard(clearedBoard);
+      spawnNext(clearedBoard, next);
     }
-    spawnNext(clearedBoard, next);
   }, [next, spawnNext]);
 
   const moveDown = useCallback(() => {
@@ -238,6 +250,7 @@ export function useTetris() {
     lines,
     gameOver,
     paused,
+    clearingRows,
     reset,
     setPaused,
   };
